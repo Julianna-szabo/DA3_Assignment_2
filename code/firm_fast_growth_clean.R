@@ -193,11 +193,11 @@ data <- data %>%
 # Further this number already represents a change so the interpretation of log transformations
 # doesn't really make sense or add anything to the model.
 
-
-
 # https://www.revenuerocket.com/whats-growth-rate-fast-slow-just-right/ - 15% threshold justification
 
-# Filter out values that have a larger change than 5 (500%) or smaller than 10 (-100%)
+# Filter out values that have a larger change than 5 (500%) or smaller than 10 (-100%) - DOESNT WORK
+# This is completely arbitrary. We have to find a better argumentation.
+# However there are very large outliers in the data that mess it up.
 data_temp <- data  
 
 data <- data %>% filter(sales_y_on_y >= -10 | sales_y_on_y <= 5)

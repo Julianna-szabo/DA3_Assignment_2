@@ -110,17 +110,23 @@ write.csv(data, "data/fast_growth_workingfile_1")
 
 #Check the three different possible variables
 
-# Filter out NAs
+# Filter out NaNs
 
-data<- filter(data, !is.na(profit_loss_year_y_on_y)) 
-data<- filter(data, !is.na(sales_y_on_y)) 
-data<- filter(data, !is.na(inc_bef_tax_y_on_y)) 
+data<- filter(data, !is.infinite(profit_loss_year_y_on_y)) 
+data<- filter(data, !is.infinite(sales_y_on_y)) 
+data<- filter(data, !is.infinite(inc_bef_tax_y_on_y)) 
+
+glimpse(data)
+
+filter(data, is.infinite(inc_bef_tax_y_on_y)) %>% 
+  count()
 
 # Distribution of sales year on year
 
 data %>% 
   filter(year == 2013) %>% 
-  filter(!is.infinite(sales_y_on_y)) %>% 
+  filter(!is.infinite(sales_y_on_y)) %>%
+  filter(sales_y_on_y < 5 & sales_y_on_y > -5) %>% 
   summarise(
     mean = mean(sales_y_on_y),
     min = min(sales_y_on_y),
@@ -139,6 +145,7 @@ data %>%
 data %>% 
   filter(year == 2013) %>% 
   filter(!is.infinite(profit_loss_year_y_on_y)) %>% 
+  filter(profit_loss_year_y_on_y < 5 & profit_loss_year_y_on_y > -5) %>% 
   summarise(
     mean = mean(profit_loss_year_y_on_y),
     min = min(profit_loss_year_y_on_y),
@@ -170,6 +177,23 @@ data %>%
   filter(inc_bef_tax_y_on_y < 5 & inc_bef_tax_y_on_y > -5) %>% 
   ggplot(aes(x = inc_bef_tax_y_on_y)) +
   geom_histogram(bins = 100)
+
+
+# Check if ln would make sense - DOESN'T
+
+data <- data %>% 
+  mutate(
+    ln_profit_loss_year_y_on_y = log(profit_loss_year_y_on_y),
+    ln_sales_y_on_y = log(sales_y_on_y),
+    ln_inc_bef_tax_y_on_y = log(inc_bef_tax_y_on_y)
+  )
+
+# There are too many zeros in the value for log transformations.
+# We cannot drop them since they include important information.
+# Further this number already represents a change so the interpretation of log transformations
+# doesn't really make sense or add anything to the model.
+
+
 
 # https://www.revenuerocket.com/whats-growth-rate-fast-slow-just-right/ - 15% threshold justification
 

@@ -108,7 +108,10 @@ for (i in unique(data$comp_id)) {
 
 write.csv(data, "Data/Clean/fast_growth_workingfile_1.csv")
 
-#Check the three different possible variables
+#data <- read_csv(file = "Data/Clean/fast_growth_workingfile_1.csv")
+
+##########################################################################
+# Check the three different possible variables: sales, profit and EBIDTA
 
 # Filter out NaNs and infinates
 data<- filter(data, !is.infinite(profit_loss_year_y_on_y)) 
@@ -139,11 +142,11 @@ data %>%
   )
 # from the summary statistics, we should filter out extreme variables. Let's restrict max growth on sales at 200%, and min growth
 # (max loss) at -200%
-data<- filter(data, sales_y_on_y < 2 & sales_y_on_y > -2) 
 
 # check summary statistics again:
 summary_sales_growth <- data %>% 
   filter(year == 2013) %>% 
+  filter(sales_y_on_y < 2 & sales_y_on_y > -2) %>% 
   summarise(
     Obs = 'sales_y_on_y',
     n = sum( !is.na(sales_y_on_y )),
@@ -161,6 +164,7 @@ count(data, sales_y_on_y > 0)
 # check distribution
 data %>% 
   filter(year == 2013) %>% 
+  filter(sales_y_on_y < 2 & sales_y_on_y > -2) %>% 
   ggplot(aes(x = sales_y_on_y)) +
   geom_histogram(bins = 100)
 
@@ -184,12 +188,11 @@ data %>%
   )
 # from the summary statistics, we should filter out extreme variables. Let's restrict max growth on profit at 200%, and min growth
 # (max loss) at -200%
-data<- filter(data, profit_loss_year_y_on_y < 2 & profit_loss_year_y_on_y > -2) 
-
 
 # check summary statistics again:
 summary_profit_growth <- data %>% 
   filter(year == 2013) %>% 
+  filter(profit_loss_year_y_on_y < 2 & profit_loss_year_y_on_y > -2) %>% 
   summarise(
     Obs = 'profit_loss_year_y_on_y',
     n = sum( !is.na( profit_loss_year_y_on_y ) ),
@@ -207,6 +210,7 @@ count(data, profit_loss_year_y_on_y > 0)
 # check distribution
 data %>% 
   filter(year == 2013) %>% 
+  filter(profit_loss_year_y_on_y < 2 & profit_loss_year_y_on_y > -2) %>% 
   ggplot(aes(x = profit_loss_year_y_on_y)) +
   geom_histogram(bins = 100)
 
@@ -231,10 +235,11 @@ data %>%
 
 # from the summary statistics, we should filter out extreme variables. Let's restrict max growth on profit at 200%, and min growth
 # (max loss) at -200%
-data<- filter(data, inc_bef_tax_y_on_y < 2 & inc_bef_tax_y_on_y > -2) 
 
+# check summary statistics again:
 summary_EBIDTA_growth <- data %>% 
   filter(year == 2013) %>% 
+  filter(inc_bef_tax_y_on_y < 2 & inc_bef_tax_y_on_y > -2) %>% 
   summarise(
     Obs = 'inc_bef_tax_y_on_y',
     n = sum( !is.na( inc_bef_tax_y_on_y ) ),
@@ -252,11 +257,13 @@ count(data, inc_bef_tax_y_on_y > 0)
 # check distribution
 data %>% 
   filter(year == 2013) %>% 
+  filter(inc_bef_tax_y_on_y < 2 & inc_bef_tax_y_on_y > -2) %>% 
   ggplot(aes(x = inc_bef_tax_y_on_y)) +
   geom_histogram(bins = 100)
 
 # combine the 3 summary statistics together
 growth_variables_summary <- summary_sales_growth %>% add_row( summary_profit_growth ) %>% add_row(summary_EBIDTA_growth)
+growth_variables_summary
 
 # based on the combined summary statistics, I suggest we use third quartile as our threshold, everything above third quartile
 # we should classify them as fast-growth firms. So that's like first 25% of the data. 
@@ -264,24 +271,22 @@ growth_variables_summary <- summary_sales_growth %>% add_row( summary_profit_gro
 # 2). for profit on sales: threshold is 0.132
 # 3). for ebidta on sales: threshold is 0.158
 
+# We choose to use growth on sales as our growth vairbale since it gives the largest data sample and more consistant
+data <- filter(data, sales_y_on_y < 2 & sales_y_on_y > -2)
 
-
-# Binary variables for fast growth - target variable
+# Binary variables for fast growth on SALES - target variable
 data <- data %>% 
   mutate(
-    fast_growth_sales = ifelse((sales_y_on_y >= 0.213), 1, 0),
-    fast_growth_profit = ifelse((profit_loss_year_y_on_y >= 0.132), 1, 0),
-    fast_growth_ebidta = ifelse((inc_bef_tax_y_on_y >= 0.158), 1, 0)
-  )
+    fast_growth_sales = ifelse((sales_y_on_y >= 0.213), 1, 0))
 
-# We should choose one final target variable based on maybe total sample size? sales has the largest number of non-na sample.
+# save file
+write.csv(data, "Data/Clean/fast_growth_workingfile_targetchoosen.csv")
 
-
-# write.csv(data, "Data/Clean/fast_growth_workingfile_targetchoosen.csv")
 
 #####################
 ### Sample design ##
 ####################
+# data <- read_csv(file = "Data/Clean/fast_growth_workingfile_targetchoosen.csv")
 
 data <- data %>% 
   filter(data$year == 2013)

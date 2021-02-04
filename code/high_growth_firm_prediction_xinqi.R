@@ -291,13 +291,33 @@ data <- data %>%
 write.csv(data, "Data/Clean/fast_growth_workingfile_targetchoosen.csv")
 
 
+# generate status_alive; if sales larger than zero and not-NA, then firm is alive
+data  <- data %>%
+  mutate(status_alive = sales > 0 & !is.na(sales) %>%
+           as.numeric(.))
+
+# Size and growth
+data <- data %>%
+  mutate(sales = ifelse(sales < 0, 1, sales),
+         ln_sales = ifelse(sales > 0, log(sales), 0),
+         sales_mil=sales/1000000,
+         sales_mil_log = ifelse(sales > 0, log(sales_mil), 0))
+
+
+# calculate the age of firms
+data <- data %>% mutate(age = (year - founded_year))
+
+
 #####################
 ### Sample design ##
 ####################
 # data <- read_csv(file = "Data/Clean/fast_growth_workingfile_targetchoosen.csv")
+data <- data %>%
+  filter((year == 2012) & (status_alive == 1)) %>%
+  # look at firms below 10m euro revenues and above 1000 euros
+  filter(!(sales_mil > 10)) %>%
+  filter(!(sales_mil < 0.001))
 
-data <- data %>% 
-  filter(data$year == 2012)
 
 ###########################################################
 # Feature engineering

@@ -106,6 +106,21 @@ for (i in unique(data$comp_id)) {
   }
 }
 
+#transform the data, take the 2013 rows and make them into columns, so we only left with 2012 explantory varibales
+new_data_2013<-filter(data, year==2013)
+new_data_2012<-filter(data, year==2012)
+
+data <- as.data.frame(cbind(new_data_2012, new_data_2013$profit_loss_year_y_on_y, new_data_2013$sales_y_on_y, new_data_2013$inc_bef_tax_y_on_y))
+
+data <- mutate(data, profit_loss_year_y_on_y = new_data_2013$profit_loss_year_y_on_y,
+               sales_y_on_y = new_data_2013$sales_y_on_y,
+               inc_bef_tax_y_on_y = new_data_2013$inc_bef_tax_y_on_y)
+
+drops <- c('new_data_2013$profit_loss_year_y_on_y','new_data_2013$sales_y_on_y','new_data_2013$inc_bef_tax_y_on_y')
+
+data <- data[ , !(names(data) %in% drops)]
+
+# save it into clean file 
 write.csv(data, "Data/Clean/fast_growth_workingfile_1.csv")
 
 #data <- read_csv(file = "Data/Clean/fast_growth_workingfile_1.csv")
@@ -113,10 +128,12 @@ write.csv(data, "Data/Clean/fast_growth_workingfile_1.csv")
 ##########################################################################
 # Check the three different possible variables: sales, profit and EBIDTA
 
-# Filter out NaNs and infinates
+# Filter out infinates
 data<- filter(data, !is.infinite(profit_loss_year_y_on_y)) 
 data<- filter(data, !is.infinite(sales_y_on_y)) 
 data<- filter(data, !is.infinite(inc_bef_tax_y_on_y)) 
+
+# Filter out NAs 
 data<- filter(data, !is.na(profit_loss_year_y_on_y)) 
 data<- filter(data, !is.na(sales_y_on_y)) 
 data<- filter(data, !is.na(inc_bef_tax_y_on_y))
@@ -128,7 +145,6 @@ glimpse(data)
 ##############################
 # check growth on sales statistics
 data %>% 
-  filter(year == 2013) %>% 
   summarise(
     Obs = 'sales_y_on_y',
     n = sum( !is.na( sales_y_on_y ) ),
@@ -145,7 +161,6 @@ data %>%
 
 # check summary statistics again:
 summary_sales_growth <- data %>% 
-  filter(year == 2013) %>% 
   filter(sales_y_on_y < 2 & sales_y_on_y > -2) %>% 
   summarise(
     Obs = 'sales_y_on_y',
@@ -163,7 +178,6 @@ count(data, sales_y_on_y > 0)
 
 # check distribution
 data %>% 
-  filter(year == 2013) %>% 
   filter(sales_y_on_y < 2 & sales_y_on_y > -2) %>% 
   ggplot(aes(x = sales_y_on_y)) +
   geom_histogram(bins = 100)
@@ -174,7 +188,6 @@ data %>%
 ###########################################
 # Distribution of profit year on year
 data %>% 
-  filter(year == 2013) %>% 
   summarise(
     Obs = 'profit_loss_year_y_on_y',
     n = sum( !is.na( profit_loss_year_y_on_y ) ),
@@ -191,7 +204,6 @@ data %>%
 
 # check summary statistics again:
 summary_profit_growth <- data %>% 
-  filter(year == 2013) %>% 
   filter(profit_loss_year_y_on_y < 2 & profit_loss_year_y_on_y > -2) %>% 
   summarise(
     Obs = 'profit_loss_year_y_on_y',
@@ -209,7 +221,6 @@ count(data, profit_loss_year_y_on_y > 0)
 
 # check distribution
 data %>% 
-  filter(year == 2013) %>% 
   filter(profit_loss_year_y_on_y < 2 & profit_loss_year_y_on_y > -2) %>% 
   ggplot(aes(x = profit_loss_year_y_on_y)) +
   geom_histogram(bins = 100)
@@ -220,7 +231,6 @@ data %>%
 #####################################
 # Distribution of EBIDTA year on year
 data %>% 
-  filter(year == 2013) %>% 
   summarise(
     Obs = 'inc_bef_tax_y_on_y',
     n = sum( !is.na( inc_bef_tax_y_on_y ) ),
@@ -238,7 +248,6 @@ data %>%
 
 # check summary statistics again:
 summary_EBIDTA_growth <- data %>% 
-  filter(year == 2013) %>% 
   filter(inc_bef_tax_y_on_y < 2 & inc_bef_tax_y_on_y > -2) %>% 
   summarise(
     Obs = 'inc_bef_tax_y_on_y',
@@ -256,7 +265,6 @@ count(data, inc_bef_tax_y_on_y > 0)
 
 # check distribution
 data %>% 
-  filter(year == 2013) %>% 
   filter(inc_bef_tax_y_on_y < 2 & inc_bef_tax_y_on_y > -2) %>% 
   ggplot(aes(x = inc_bef_tax_y_on_y)) +
   geom_histogram(bins = 100)
@@ -268,8 +276,8 @@ growth_variables_summary
 # based on the combined summary statistics, I suggest we use third quartile as our threshold, everything above third quartile
 # we should classify them as fast-growth firms. So that's like first 25% of the data. 
 # 1). for growth on sales: threshold is 0.213
-# 2). for profit on sales: threshold is 0.132
-# 3). for ebidta on sales: threshold is 0.158
+# 2). for profit on sales: threshold is 0.141
+# 3). for ebidta on sales: threshold is 0.184
 
 # We choose to use growth on sales as our growth vairbale since it gives the largest data sample and more consistant
 data <- filter(data, sales_y_on_y < 2 & sales_y_on_y > -2)
@@ -289,7 +297,7 @@ write.csv(data, "Data/Clean/fast_growth_workingfile_targetchoosen.csv")
 # data <- read_csv(file = "Data/Clean/fast_growth_workingfile_targetchoosen.csv")
 
 data <- data %>% 
-  filter(data$year == 2013)
+  filter(data$year == 2012)
 
 ###########################################################
 # Feature engineering

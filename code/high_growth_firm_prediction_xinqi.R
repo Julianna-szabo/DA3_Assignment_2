@@ -26,7 +26,8 @@ library(rpart.plot)
 
 # import data
 
-data <- read_csv(file = "Data/Clean/cs_bisnode_panel.csv")
+data_url <- "https://raw.githubusercontent.com/Julianna-szabo/DA3_Assignment_2/main/data/cs_bisnode_panel.csv?token=AREBRMDA52YMHJHLWGZLSZDADU7K4"
+data <- read_csv(file = data_url)
 
 data_original <- data
 
@@ -102,6 +103,8 @@ data<- filter(data, !is.na(profit_loss_year))
 data<- filter(data, !is.na(sales)) 
 data<- filter(data, !is.na(inc_bef_tax)) 
 
+
+# Drop company IDs which do not have observations for both years
 comp_count_check <- data %>% 
   group_by(comp_id) %>% 
   count()
@@ -146,9 +149,9 @@ drops <- c('new_data_2013$profit_loss_year_y_on_y','new_data_2013$sales_y_on_y',
 data <- data[ , !(names(data) %in% drops)]
 
 # save it into clean file 
-write.csv(data, "Data/Clean/fast_growth_workingfile_1.csv")
+write.csv(data, "Data/fast_growth_workingfile_1.csv")
 
-#data <- read_csv(file = "Data/Clean/fast_growth_workingfile_1.csv")
+# data <- read_csv(file = "data/fast_growth_workingfile_1.csv")
 
 ##########################################################################
 # Check the three different possible variables: sales, profit and EBIDTA
@@ -313,7 +316,7 @@ data <- data %>%
     fast_growth_sales = ifelse((sales_y_on_y >= 0.213), 1, 0))
 
 # save file
-write.csv(data, "Data/Clean/fast_growth_workingfile_targetchoosen.csv")
+write.csv(data, "Data/fast_growth_workingfile_targetchoosen.csv")
 
 
 # generate status_alive; if sales larger than zero and not-NA, then firm is alive
@@ -376,7 +379,7 @@ summary(data$total_assets_bs)
 
 
 pl_names <- c("extra_exp","extra_inc",  "extra_profit_loss", "inventories",
-              "material_exp", "personnel_exp")
+              "material_exp", "personnel_exp", "inc_bef_tax", "profit_loss_year")
 bs_names <- c("intang_assets", "curr_liab", "fixed_assets", "liq_assets", "curr_assets",
               "share_eq", "subscribed_cap", "tang_assets" )
 
@@ -407,7 +410,7 @@ data <- data %>%
 
 
 # for vars that could be any, but are mostly between -1 and 1
-any <-  c("extra_profit_loss_pl", "share_eq_bs")
+any <-  c("extra_profit_loss_pl", "share_eq_bs", "inc_bef_tax_pl", "profit_loss_year_pl")
 
 data <- data %>%
   mutate_at(vars(any), funs("flag_low"= as.numeric(.< -1))) %>%
@@ -557,4 +560,4 @@ d1sale_3
 
 
 # Write into a CSV
-write.csv(data, "Data/Clean/fast_growth_clean.csv")
+write.csv(data, "data/fast_growth_clean.csv")

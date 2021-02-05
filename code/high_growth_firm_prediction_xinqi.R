@@ -47,11 +47,36 @@ options(digits = 3)
 # Filter 2010 - 2015
 
 data <- data %>% 
-  filter(year >= 2010 & year <=2015)
+  filter(year >= 2011 & year <=2015)
 
 # Sort by company id
 
 data <- data[order(data$comp_id),]
+
+# Size and growth
+summary(data$sales) # There will be NAs, we'll drop them soon
+
+data <- data %>%
+  mutate(sales = ifelse(sales < 0, 1, sales),
+         ln_sales = ifelse(sales > 0, log(sales), 0),
+         sales_mil=sales/1000000,
+         sales_mil_log = ifelse(sales > 0, log(sales_mil), 0))
+
+data <- data %>%
+  group_by(comp_id) %>%
+  mutate(d1_sales_mil_log = sales_mil_log - Lag(sales_mil_log, 1) ) %>%
+  ungroup()
+
+
+# replace w 0 for new firms + add dummy to capture it
+data <- data %>%
+  mutate(age = (year - founded_year) %>%
+           ifelse(. < 0, 0, .),
+         new = as.numeric(age <= 1) %>% #  (age could be 0,1 )
+           ifelse(balsheet_notfullyear == 1, 1, .),
+         d1_sales_mil_log = ifelse(new == 1, 0, d1_sales_mil_log),
+         new = ifelse(is.na(d1_sales_mil_log), 1, new),
+         d1_sales_mil_log = ifelse(is.na(d1_sales_mil_log), 0, d1_sales_mil_log))
 
 
 ############################
@@ -296,17 +321,6 @@ data  <- data %>%
   mutate(status_alive = sales > 0 & !is.na(sales) %>%
            as.numeric(.))
 
-# Size and growth
-data <- data %>%
-  mutate(sales = ifelse(sales < 0, 1, sales),
-         ln_sales = ifelse(sales > 0, log(sales), 0),
-         sales_mil=sales/1000000,
-         sales_mil_log = ifelse(sales > 0, log(sales_mil), 0))
-
-
-# calculate the age of firms
-data <- data %>% mutate(age = (year - founded_year))
-
 
 #####################
 ### Sample design ##
@@ -447,8 +461,8 @@ data <- data %>%
          ind2_cat = factor(ind2_cat, levels = sort(unique(data$ind2_cat))))
 
 data <- data %>%
-  mutate(default_f = factor(default, levels = c(0,1)) %>%
-           recode(., `0` = 'no_default', `1` = "default"))
+  mutate(fast_growth_sales_f = factor(fast_growth_sales, levels = c(0,1)) %>%
+           recode(., `0` = 'no_fast_growth', `1` = "fast_growth"))
 
 ########################################################################
 # sales CHECK
@@ -458,15 +472,19 @@ data <- data %>%
   mutate(sales_mil_log_sq=sales_mil_log^2)
 
 
-ggplot(data = data, aes(x=sales_mil_log, y=as.numeric(default))) +
+ggplot(data = data, aes(x=sales_mil_log, y=as.numeric(fast_growth_sales))) +
   geom_point(size=2,  shape=20, stroke=2, fill="blue", color="blue") +
-  geom_smooth(method = "lm", formula = y ~ poly(x,2), color=color[4], se = F, size=1)+
-  geom_smooth(method="loess", se=F, colour=color[5], size=1.5, span=0.9) +
-  labs(x = "sales_mil_log",y = "default") +
-  theme_bg()
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), color='orange', se = F, size=1)+
+  geom_smooth(method="loess", se=F, colour='darkgreen', size=1.5, span=0.9) +
+  labs(x = "sales_mil_log",y = "fast_growth_firms") +
+  theme_light() +
+  theme(axis.text.x=element_text(size=6,face = "plain")) +
+  theme(axis.text.y=element_text(size=6,face = "plain")) +
+  theme(axis.title.x=element_text(size=6, vjust=0, face = "plain")) +
+  theme(axis.title.y=element_text(size=6,vjust=1.25, face = "plain"))
 
 
-ols_s <- lm(default~sales_mil_log+sales_mil_log_sq,
+ols_s <- lm(fast_growth_sales~sales_mil_log+sales_mil_log_sq,
             data = data)
 summary(ols_s)
 
@@ -478,14 +496,17 @@ summary(ols_s)
 # lowess
 Hmisc::describe(data$d1_sales_mil_log) # no missing
 
-d1sale_1<-ggplot(data = data, aes(x=d1_sales_mil_log, y=as.numeric(default))) +
-  geom_point(size=0.1,  shape=20, stroke=2, fill=color[2], color=color[2]) +
-  geom_smooth(method="loess", se=F, colour=color[1], size=1.5, span=0.9) +
-  labs(x = "Growth rate (Diff of ln sales)",y = "default") +
-  theme_bg() +
+d1sale_1<-ggplot(data = data, aes(x=d1_sales_mil_log, y=as.numeric(fast_growth_sales))) +
+  geom_point(size=0.1,  shape=20, stroke=2, fill='orange', color='orange') +
+  geom_smooth(method="loess", se=F, colour='darkgreen', size=1.5, span=0.9) +
+  labs(x = "Growth rate (Diff of ln sales)",y = "fast_growth_firms") +
+  theme_light() +
+  theme(axis.text.x=element_text(size=6,face = "plain")) +
+  theme(axis.text.y=element_text(size=6,face = "plain")) +
+  theme(axis.title.x=element_text(size=6, vjust=0, face = "plain")) +
+  theme(axis.title.y=element_text(size=6,vjust=1.25, face = "plain")) +
   scale_x_continuous(limits = c(-6,10), breaks = seq(-5,10, 5))
 d1sale_1
-save_fig("ch17-extra-1", output, "small")
 
 # generate variables ---------------------------------------------------
 
@@ -503,32 +524,37 @@ data <- data %>%
 
 # drop missing
 data <- data %>%
-  filter(!is.na(foreign), !is.na(material_exp_pl), !is.na(m_region_loc))
+  filter(!is.na(age),!is.na(foreign), !is.na(material_exp_pl), !is.na(m_region_loc))
 Hmisc::describe(data$age)
 
 # drop unused factor levels
 data <- data %>%
   mutate_at(vars(colnames(data)[sapply(data, is.factor)]), funs(fct_drop))
 
-d1sale_2<-ggplot(data = data, aes(x=d1_sales_mil_log_mod, y=as.numeric(default))) +
-  geom_point(size=0.1,  shape=20, stroke=2, fill=color[2], color=color[2]) +
-  geom_smooth(method="loess", se=F, colour=color[1], size=1.5, span=0.9) +
-  labs(x = "Growth rate (Diff of ln sales)",y = "default") +
-  theme_bg() +
+d1sale_2<-ggplot(data = data, aes(x=d1_sales_mil_log_mod, y=as.numeric(fast_growth_sales))) +
+  geom_point(size=0.1,  shape=20, stroke=2, fill='orange', color='orange') +
+  geom_smooth(method="loess", se=F, colour='darkgreen', size=1.5, span=0.9) +
+  labs(x = "Growth rate (Diff of ln sales)",y = "fast_growth_firms") +
+  theme_light() +
+  theme(axis.text.x=element_text(size=6,face = "plain")) +
+  theme(axis.text.y=element_text(size=6,face = "plain")) +
+  theme(axis.title.x=element_text(size=6, vjust=0, face = "plain")) +
+  theme(axis.title.y=element_text(size=6,vjust=1.25, face = "plain")) +
   scale_x_continuous(limits = c(-1.5,1.5), breaks = seq(-1.5,1.5, 0.5))
 d1sale_2
-save_fig("ch17-extra-2", output, "small")
 
 d1sale_3<-ggplot(data = data, aes(x=d1_sales_mil_log, y=d1_sales_mil_log_mod)) +
-  geom_point(size=0.1,  shape=20, stroke=2, fill=color[2], color=color[2]) +
+  geom_point(size=0.1,  shape=20, stroke=2, fill='orange', color='orange') +
   labs(x = "Growth rate (Diff of ln sales) (original)",y = "Growth rate (Diff of ln sales) (winsorized)") +
-  theme_bg() +
+  theme_light() +
+  theme(axis.text.x=element_text(size=6,face = "plain")) +
+  theme(axis.text.y=element_text(size=6,face = "plain")) +
+  theme(axis.title.x=element_text(size=6, vjust=0, face = "plain")) +
+  theme(axis.title.y=element_text(size=6,vjust=1.25, face = "plain")) +
   scale_x_continuous(limits = c(-5,5), breaks = seq(-5,5, 1)) +
   scale_y_continuous(limits = c(-3,3), breaks = seq(-3,3, 1))
 d1sale_3
-save_fig("ch17-extra-3", output, "small")
 
 
 # Write into a CSV
-
-write_csv(data,paste0("data/firms_fast growth_clean.csv"))
+write.csv(data, "Data/Clean/fast_growth_clean.csv")

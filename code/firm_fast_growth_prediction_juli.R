@@ -60,7 +60,7 @@ engvar3 <- c(grep("*flag_low$", names(data), value = TRUE),
              grep("*flag_high$", names(data), value = TRUE),
              grep("*flag_error$", names(data), value = TRUE),
              grep("*flag_zero$", names(data), value = TRUE))
-d1 <-  c("d1_sales_mil_log_mod", "d1_sales_mil_log_mod_sq",
+growth <-  c("d1_sales_mil_log_mod", "d1_sales_mil_log_mod_sq",
          "flag_low_d1_sales_mil_log", "flag_high_d1_sales_mil_log")
 hr <- c("female", "ceo_age", "flag_high_ceo_age", "flag_low_ceo_age",
         "flag_miss_ceo_age", "ceo_count", "labor_avg_mod",
@@ -85,4 +85,25 @@ interactions2 <- c("sales_mil_log*age", "sales_mil_log*female",
 #| Profit and loss ratios | 8 | Extra expenses ratio, Extra income ratio, Extra profit or loss ratio, Income before tax ratio, Inventory ratio, Material expenses ratio, Profit or loss ratio, Personnel expenses ratio |
 #| Quadratir variables | 4 | Extra profit or loss squared, Income before tax squared, Profit or loss squared, Equity in shares squared |
 #| Flags for values |  | Flags showing high, low, zeros, and errors for the raw variables when applicable |
-#| Sales growth | 4 | 
+#| Sales growth | 4 | Change in sales in millions, Change in sales in millions squared, Flag for low sales, Flag for low sales squared |
+#| HR factors | 9 | Ratios of females | Age of the CEO, Flag for old CEOs, Flag for young CEOs, Flag for missing CEOs, Number of CEOs, Average labour, Flag for missing labour information. Foreign management |
+#| Firm data | 6 | Age of the company, Age of the company squared, New company flag, Indicator categories, Location by region, Flag for urban |
+#| First interactions | 9 | Interactions between non-numeric variables |
+#| Second interactions | 4 | Interactions between numeric variables |
+
+# Building models
+
+X1 <- c("sales_mil_log", "sales_mil_log_sq", "d1_sales_mil_log_mod", "profit_loss_year_pl", "ind2_cat")
+X2 <- c("sales_mil_log", "sales_mil_log_sq", "d1_sales_mil_log_mod", "profit_loss_year_pl", "fixed_assets_bs","share_eq_bs","curr_liab_bs ",   "curr_liab_bs_flag_high ", "curr_liab_bs_flag_error",  "age","foreign_management" , "ind2_cat")
+X3 <- c("sales_mil_log", "sales_mil_log_sq", firm, balancesheet, growth)
+X4 <- c("sales_mil_log", "sales_mil_log_sq", firm, profitandloss, growth)
+X5 <- c("sales_mil_log", "sales_mil_log_sq", firm, profitandloss, growth, hr)
+X6 <- c("sales_mil_log", "sales_mil_log_sq", firm, balancesheet, profitandloss, engvar2, engvar3, growth, hr, qualityvars)
+X7 <- c("sales_mil_log", "sales_mil_log_sq", firm, balancesheet, profitandloss, engvar2, engvar3, growth, hr, qualityvars, interactions1, interactions2)
+
+logitvars <- c("sales_mil_log", "sales_mil_log_sq", balancesheet, profitandloss, engvar2, engvar3, growth, hr, firm, qualityvars, interactions1, interactions2)
+
+# for RF (no interactions, no modified features)
+rfvars  <-  c("sales_mil", "d1_sales_mil_log", rawvars, hr, firm, qualityvars)
+
+

@@ -553,6 +553,18 @@ data <- data %>%
 
 ```
 
+
+## 3. Probability Prediction and Model Selection: Logit Models 
+This section will carry out a probability prediction by logit, select the best model by cross-validation, and evaluate the holdout set's best prediction. We take 80% of our data as a working sample, which has 12936 observations, and the rest 20% as our holdout set, which has 3234 observations. 
+
+ 
+
+### 3.1 Categorizing the variables 
+The first step of building models is to separate the different variables into categories to know when to add which ones. This is done to determine what type of variables have the most considerable effect on the dependent variable. In this case, first, the raw variables have been separated from the modified ones. The ratio variables have also been split from the raw ones since they show a different aspect. These emphasize how each is in terms of the whole (total assets or total balance sheet). This is a crucial aspect since the size of the number does not in itself say anything. It could be large or small, but that will only show in comparison with the whole. Second, the squared variables were separated, their manipulated state would have a very different effect when combined with the raw variables. The flags have been put in their category to be able to show their effect separately. Sometimes knowing is too high or low can be interesting, while this fact is almost irrelevant. 
+
+A growth category (d1) was created since this is especially important to our study of fast-growing firms. The last two categories created were HR and Firm, which show different aspects of a company. HR includes gender ratio, age of CEO, and other internal factors related to the employees. On the other hand, Firm includes more fundamental factors related to the company itself, such as age, location, etc. Two categories of interactions were also created to feed a logit LASSO model as many variables as possible. One of these was based on numerical variables and the other on non-numeric. This split between the variables allows for the building of models with different focuses.   
+
+ 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.show='hide'}
 #######################################################################################################################
 # Prediction Part
@@ -781,6 +793,9 @@ tpr_fpr_for_thresholds <- tibble(
 library(viridis)
 ```
 
+### 3.2 Probability Prediction 
+First, we consider five logit models and LASSO. The five logit models differ from predictor variables and their interactions. The basic model includes sales, sales growth, profit/loss and industry categories. We then add firms' financial variables and attributes, followed by growth, HR, and data quality. Finally, for the last logit model and the logit LASSO model, we include 13 interactions, from the firm's age to industry categories. As we said earlier, we take 80% of our data as a work set for our model's predictive performance, and the rest 20% random sample as a holdout set. We then use a 5-fold-cross-validation to divide the work set into training and test sets five times. We evaluate each model by its average RMSE. The six model results are shown below. Logit LASSO starts with the logit M5 model that includes all the variables and interactions and shrinks the coefficients from 151 to 47 to select variables for a better predictive model. It gives the lowest average RMSE of 0.424. Logit M4 has a similar RMSE but presents with a more complicated model with a higher number of coefficients. As a result, we consider Logit LASSO as our benchmark model within the logit models. After estimating the model on all observations in the work sample, we calculate its RMSE in the random holdout sample. The RMSE for LASSO is 0.417, which is smaller than the cross-validated RMSE. 
+
 
 \begin{table}[htbp]
 \caption{\bf Cross-validated RMSE of Logit Models}
@@ -789,16 +804,25 @@ library(viridis)
 \hline\hline
   & N Vars & N coeffs & CV RMSE\\
 \hline
-X1 & 4 & 12 & 0.574\\
-X2 & 9 & 19 & 0.605\\
-X3 & 22 & 36 & 0.622\\
-X4 & 30 & 77 & 0.627\\
-X5 & 30 & 151 & 0.629\\
-LASSO & 30 & 47 & 0.614\\
+Logit M1 & 4 & 12 & 0.431\\
+Logit M2 & 9 & 19 & 0.428\\
+Logit M3 & 22 & 36 & 0.426\\
+Logit M4 & 30 & 77 & 0.425\\
+Logit M5 & 30 & 151 & 0.426\\
+LASSO & 30 & 47 & 0.424\\
 \hline
 \end{tabular}
   \label{tab:shape-functions}
 \end{table}
+
+
+
+### 3.3 ROC Curve and Classification Diagnostics by the Confusion Table
+Based on the chosen Logit LASSO model, we would like to see what types of mistakes we make when using a different set of threshold values. Specifically, we look at a set of threshold values between 0.05 to 0.75, by steps of 0.05. The below two figures are ROC curves for predicting high-growth firms. 
+
+The colours on the left figure correspond to the threshold values' level. The lighter the color, the lower the threshold level. As a result, we can see that if our threshold is substantial (in the bottom left corner), there are very few cases that are predicted to be positive. Similarly, the true positive rate and the false positive rate are also low. Moreover, as we lower the threshold value, more and more positive cases will happen according to the ROC curve. This is good on one hand because a higher true-positive rate means higher accuracy. However, a higher false-positive rate is alarming because it indicates we are making more mistakes. If we are willing to make more mistakes when we accept more errors, we can set the threshold low and have a high true-positive rate at the expense of actually having a high rate of making mistakes. If it’s too costly to have positive errors, then we should increase the threshold, and accept the fact that our true-positive rate is going to be low.
+
+The right-hand side graph is similar to the one on the left, but it is continuous and has no reference to the corresponding threshold values. The 45-degree line represents an entirely random prediction, so the further above the 45-degree line, the better the prediction would be.
 
 ```{r, message = F, echo = FALSE, warning=FALSE, fig.height= 3, fig.width= 8,  fig.align='center'}
 discrete_roc_plot <- ggplot(
@@ -856,6 +880,29 @@ createRocPlot <- function(r, file_name,  myheight_small = 5.625, mywidth_small =
 grid.arrange(discrete_roc_plot,createRocPlot(roc_obj_holdout, "best_logit_no_loss_roc_plot_holdout"), ncol = 2)
 ```
 
+The shaded area below the ROC curve in the right-side figure is the AUC (area under the curve). The below table shows the 5-fold cross-validation RMSE and the average AUC. The logit LASSO modal has the lowest RMSE but not necessarily the highest AUC. 
+
+\begin{table}[htbp]
+\caption{\bf RMSE and AUC for Various Models of High-growth Firms}
+\centering
+\begin{tabular}{lccc}
+\hline\hline
+  & Number of predictors & CV RMSE & CV AUC\\
+\hline
+Logit M1 & 11 & 0.431 & 0.574\\
+Logit M2 & 18 & 0.428 & 0.605\\
+Logit M3 & 35 & 0.426 & 0.622\\
+Logit M4 & 76 & 0.425 & 0.627\\
+Logit M5 & 150 & 0.426 & 0.629\\
+LASSO & 46 & 0.424 & 0.614\\
+\hline
+\end{tabular}
+  \label{tab:shape-functions}
+\end{table}
+
+
+Once we pick the best model for predicting probabilities, we illustrate classification using the holdout set. We show the confusion table for two possible thresholds: 0.5 and 0.25. 0.5 is the default choice of R if no threshold is specified, and 0.25 is picked based on the percentage of high-growth firms selected from the data. The below table shows the confusion tables for both of these thresholds. We can see that we have a lower true-positive rate from the confusion table when having a higher threshold, 2% with threshold 0.5, and 14% with a threshold of 0.25. The same goes for false positive, 1% with a threshold of 0.5, and 30% with a threshold of 0.25.
+
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.show='hide'}
 # fast_growth: the threshold 0.5 is used to convert probabilities to binary classes
 logit_class_prediction <- predict(best_logit_no_loss, newdata = data_holdout)
@@ -888,6 +935,39 @@ cm2 <- cm_object2$table
 cm2
 ```
 
+Table 10 shows that the 0.5 threshold leads to a higher accuracy rate than 0.25 and a higher specificity rate. At the same time, the 0.25 threshold results in higher sensitivity.
+
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{lccc|ccc}
+         &\multicolumn{3}{c|}{Threshold: 0.5} & \multicolumn{3}{c}{Threshold: 0.25}  \\
+         \hline
+         & Actual No FG & FG & Total &  Actual No FG & FG & Total \\
+         \hline
+         Predicted No FG & 75\% & 22\% & 97\% & 46\% & 10\% & 56\% \\
+         Predicted FG & 1\% & 2\% & 3\% & 30\% & 14\% & 44\% \\
+         Total & 76\% & 24\% & 100\% & 76\% & 24\% & 100\% \\
+         \hline
+    \end{tabular}
+    \caption{\bf Confusion Tables with Thresholds 0.5 and 0.25}
+    \label{tab:my_label}
+\end{table}
+
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lcc}
+\hline\hline
+  & Threshold: 0.5 & Threshold: 0.25 \\
+\hline
+Accuracy & 77\% & 60\%\\
+Sensitivity & 8\% & 58\%\\
+Specificity & 99\% & 61\%\\
+\hline
+\end{tabular}
+  \caption{\bf Accuracy, Sensitivity, and Specificity for Threshold values 0.5 and 0.25 (in percentage)}
+  \label{tab:shape-functions}
+\end{table}
 
 
 
@@ -895,8 +975,19 @@ cm2
 
 
 
-
-
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lcc}
+\hline\hline
+  & Actual negative & Actual Positive \\
+\hline
+Predicted negative & 0 & 1\\
+Predicted positive & 10 & 0\\
+\hline
+\end{tabular}
+  \caption{\bf Loss Function for Classification}
+  \label{tab:shape-functions}
+\end{table}
 
 
 

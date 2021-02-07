@@ -23,6 +23,16 @@ library(rpart)
 library(partykit)
 library(rpart.plot)
 
+# Setup ------------------------------------------------------------------
+
+# set data dir, data used
+source("/Users/Terez/OneDrive - Central European University/Data_Analysis_03/da_case_studies/set-data-directory.R")             # data_dir must be first defined 
+# alternative: give full path here, 
+#            example data_dir="C:/Users/bekes.gabor/Dropbox (MTA KRTK)/bekes_kezdi_textbook/da_data_repo"
+
+# load theme and functions
+source("/Users/Terez/OneDrive - Central European University/Data_Analysis_03/da_case_studies/ch00-tech-prep/theme_bg.R")
+source("/Users/Terez/OneDrive - Central European University/Data_Analysis_03/da_case_studies/ch00-tech-prep/da_helper_functions.R")
 
 # Loading and preparing data ----------------------------------------------
 

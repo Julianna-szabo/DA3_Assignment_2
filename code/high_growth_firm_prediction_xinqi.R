@@ -39,7 +39,7 @@ data <- data %>%
   select(-c(COGS, finished_prod, net_dom_sales, net_exp_sales, wages)) %>%
   filter(year !=2016)
 
-options(digits = 10)
+options(digits = 3)
 ###########################################################
 # label engineering
 ###########################################################
@@ -316,7 +316,7 @@ data <- filter(data, sales_y_on_y < 2 & sales_y_on_y > -2)
 # Binary variables for fast growth on SALES - target variable
 data <- data %>% 
   mutate(
-    fast_growth_sales = ifelse((sales_y_on_y >= quantile(sales_y_on_y, 0.75)), 1, 0))
+    fast_growth_sales = ifelse((sales_y_on_y >= 0.213), 1, 0))
 
 # save file
 write.csv(data, "Data/fast_growth_workingfile_targetchoosen.csv")
@@ -621,7 +621,7 @@ rfvars  <-  c("sales_mil", "d1_sales_mil_log", rawvars, hr, firm, qualityvars)
 
 set.seed(13505)
 
-train_indices <- as.integer(createDataPartition(data$fast_growth_sales, p = 0.7, list = FALSE))
+train_indices <- as.integer(createDataPartition(data$fast_growth_sales, p = 0.8, list = FALSE))
 data_train <- data[train_indices, ]
 data_holdout <- data[-train_indices, ]
 
@@ -685,7 +685,7 @@ for (model_name in names(logit_model_vars)) {
 
 # Logit lasso -----------------------------------------------------------
 
-lambda <- 10^seq(-0.1, -4, length = 10)
+lambda <- 10^seq(-1, -4, length = 10)
 grid <- expand.grid("alpha" = 1, lambda = lambda)
 
 set.seed(13505)
@@ -904,9 +904,17 @@ cm2
 
 # Introduce loss function
 # relative cost of of a false negative classification (as compared with a false positive classification)
-FP=10
-FN=1
-cost = FN/FP
+FP=1  # this really should be 5, false positive is we predict the firm is fast growing, but in reality it's not. this loss should be higher.
+FN=5  # and this should be 1, false negative is we predict the firm is not fast growing, but in reality it is. So here is just opportunity lost.
+cost= FN/FP # if we switch the cost of FP and FN, cost should changed too, cost= FP/FN
+# however, this will cause the problem of our expected loss to be a large number, (run logit_summary2), and if you look at the graph
+# produced by line 1036-1037, the optimal expected loss figure, the optimal point is the opposite. so it's not minimizing loss, but
+# rather maximizng it. That's why you'll see the graph is the opposite of what we get from the text book figure 17.3.
+
+# we could just keep it this way, FP=1, FN=5, cost= FN/FP, and get nice results, but it just doesn't make sense in terms of telling
+# the story. So we either just do it "wrong" keep the number, and get nice results, or we need to somehow change the function. So
+# it's minimizing loss, but not maximize it. 
+
 # the prevalence, or the proportion of cases in the population (n.cases/(n.controls+n.cases))
 prevelance = sum(data_train$fast_growth_sales)/length(data_train$fast_growth_sales)
 
@@ -957,9 +965,75 @@ logit_summary2 <- data.frame("Avg of optimal thresholds" = unlist(best_tresholds
 kable(x = logit_summary2, format = "latex", booktabs=TRUE,  digits = 3, row.names = TRUE,
       linesep = "", col.names = c("Avg of optimal thresholds","Threshold for fold #5",
                                   "Avg expected loss","Expected loss for fold #5")) %>%
-  cat(.,file= paste0(output, "logit_summary1.tex"))
+  cat(.,file= paste0('/Users/xinqi/Desktop/DA3/Assignment_2/', "logit_summary1.tex"))
 
 # Create plots based on Fold5 in CV ----------------------------------------------
+createLossPlot <- function(r, best_coords, file_name,  myheight_small = 5.625, mywidth_small = 7.5) {
+  t <- best_coords$threshold[1]
+  sp <- best_coords$specificity[1]
+  se <- best_coords$sensitivity[1]
+  n <- rowSums(best_coords[c("tn", "tp", "fn", "fp")])[1]
+  
+  all_coords <- coords(r, x="all", ret="all", transpose = FALSE)
+  all_coords <- all_coords %>%
+    mutate(loss = (fp*FP + fn*FN)/n)
+  l <- all_coords[all_coords$threshold == t, "loss"]
+  
+  loss_plot <- ggplot(data = all_coords, aes(x = threshold, y = loss)) +
+    geom_line(color='orange', size=0.7) +
+    scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, by = 0.1)) +
+    geom_vline(xintercept = t , color = 'darkgreen' ) +
+    annotate(geom = "text", x = t, y= min(all_coords$loss),
+             label=paste0("best threshold: ", round(t,2)),
+             colour='darkgreen', angle=90, vjust = -1, hjust = -0.5, size = 7) +
+    annotate(geom = "text", x = t, y= l,
+             label= round(l, 2), hjust = -0.3, size = 7) +
+    theme_light() +
+    theme(axis.text.x=element_text(size=6,face = "plain")) +
+    theme(axis.text.y=element_text(size=6,face = "plain")) +
+    theme(axis.title.x=element_text(size=6, vjust=0, face = "plain")) +
+    theme(axis.title.y=element_text(size=6,vjust=1.25, face = "plain"))
+  # save_fig(file_name, output, "small")
+  
+  #  ggsave(plot = loss_plot, paste0(file_name,".png"), width=mywidth_small, height=myheight_small, dpi=1200)
+  #  cairo_ps(filename = paste0(file_name,".eps"), width = mywidth_small, height = myheight_small, pointsize = 12, fallback_resolution = 1200)
+  #  print(loss_plot)
+  #  dev.off()
+  
+  loss_plot
+}
+
+createRocPlotWithOptimal <- function(r, best_coords, file_name,  myheight_small = 5.625, mywidth_small = 7.5) {
+  
+  all_coords <- coords(r, x="all", ret="all", transpose = FALSE)
+  t <- best_coords$threshold[1]
+  sp <- best_coords$specificity[1]
+  se <- best_coords$sensitivity[1]
+  
+  roc_plot <- ggplot(data = all_coords, aes(x = specificity, y = sensitivity)) +
+    geom_line(color='orange', size=0.7) +
+    scale_y_continuous(breaks = seq(0, 1, by = 0.1)) +
+    scale_x_reverse(breaks = seq(0, 1, by = 0.1)) +
+    geom_point(aes(x = sp, y = se)) +
+    annotate(geom = "text", x = sp, y = se,
+             label = paste(round(sp, 2),round(se, 2),sep = ", "),
+             hjust = 1, vjust = -1, size = 7) +
+    theme_light() +
+    theme(axis.text.x=element_text(size=6,face = "plain")) +
+    theme(axis.text.y=element_text(size=6,face = "plain")) +
+    theme(axis.title.x=element_text(size=6, vjust=0, face = "plain")) +
+    theme(axis.title.y=element_text(size=6,vjust=1.25, face = "plain"))
+  #  + theme(axis.text.x = element_text(size=20), axis.text.y = element_text(size=20),
+  #          axis.title.x = element_text(size=20), axis.title.y = element_text(size=20))
+  #save_fig(file_name, output, "small")
+  
+  #  ggsave(plot = roc_plot, paste0(file_name, ".png"),         width=mywidth_small, height=myheight_small, dpi=1200)
+  # cairo_ps(filename = paste0(file_name, ".eps"),           width = mywidth_small, height = myheight_small, pointsize = 12,           fallback_resolution = 1200)
+  #print(roc_plot)
+  #dev.off()
+  
+  roc_plot
+}
 
 for (model_name in names(logit_cv_rocs)) {
   
@@ -970,6 +1044,7 @@ for (model_name in names(logit_cv_rocs)) {
   createRocPlotWithOptimal(r, best_coords,
                            paste0(model_name, "_roc_plot"))
 }
+
 
 # Pick best model based on average expected loss ----------------------------------
 

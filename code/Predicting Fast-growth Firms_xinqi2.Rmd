@@ -935,7 +935,7 @@ cm2 <- cm_object2$table
 cm2
 ```
 
-Table 10 shows that the 0.5 threshold leads to a higher accuracy rate than 0.25 and a higher specificity rate. At the same time, the 0.25 threshold results in higher sensitivity.
+Table 5 shows that the 0.5 threshold leads to a higher accuracy rate than 0.25 and a higher specificity rate. At the same time, the 0.25 threshold results in higher sensitivity.
 
 \begin{table}[htbp]
     \centering
@@ -971,9 +971,8 @@ Specificity & 99\% & 61\%\\
 
 
 
-
-
-
+## 4. Classification from Predicted Probabilities: Logit Models 
+With the help of a loss function, we can find the threshold that gets us the lowest expected loss. In our case, the "positive" event is a fast growth, leading to generating high revenue and paying out full debts. The "negative" event is not fast growth, which would probably generate a low revenue and not pay out full debts. If we think about this from a bank's perspective: a false positive would be we predict the firm would be fast-growing and would be able to pay back full in the subsequential year, so we accept the business, but in reality, it is not fast growth and not able to pay back full. On the other hand, a false negative would be we predict that the firm would not be fast-growing and would not be able to pay back full, so we reject the business, but in reality, it is a fast-growing firm and generating high revenue. Both of them are a loss for the bank, but the latter (false negative) is an opportunity loss, which is better than a false positive with actual loss from the business. As a result, we decide to assign the opportunity loss (false negative) to 1 thousand euro and false positive 5 thousand euro. The below shows the value of the loss function.
 
 \begin{table}[htbp]
 \centering
@@ -988,6 +987,203 @@ Predicted positive & 10 & 0\\
   \caption{\bf Loss Function for Classification}
   \label{tab:shape-functions}
 \end{table}
+
+As a result, given that our FP loss is 5, FN loss is 1, the optimal threshold is 1/6 = 0.167. We also plot the expected loss with all possible threshold values from 0 to 1 and the lowest expected loss selected by the algorithm for one test set. The selected threshold is 0.19 with an expected loss of 0.73 with the Logit LASSO model.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.show='hide'}
+# Introduce loss function
+# relative cost of of a false negative classification (as compared with a false positive classification)
+FP=1 
+FN=5 
+cost= FN/FP 
+
+# the prevalence, or the proportion of cases in the population (n.cases/(n.controls+n.cases))
+prevelance = sum(data_train$fast_growth_sales)/length(data_train$fast_growth_sales)
+
+# Draw ROC Curve and find optimal threshold with loss function --------------------------
+
+best_tresholds <- list()
+expected_loss <- list()
+logit_cv_rocs <- list()
+logit_cv_threshold <- list()
+logit_cv_expected_loss <- list()
+
+for (model_name in names(logit_models)) {
+  
+  model <- logit_models[[model_name]]
+  colname <- paste0(model_name,"_prediction")
+  
+  best_tresholds_cv <- list()
+  expected_loss_cv <- list()
+  
+  for (fold in c("Fold1", "Fold2", "Fold3", "Fold4", "Fold5")) {
+    cv_fold <-
+      model$pred %>%
+      filter(Resample == fold)
+    
+    roc_obj <- roc(cv_fold$obs, cv_fold$fast_growth)
+    best_treshold <- coords(roc_obj, "best", ret="all", transpose = FALSE,
+                            best.method="youden", best.weights=c(cost, prevelance))
+    best_tresholds_cv[[fold]] <- best_treshold$threshold
+    expected_loss_cv[[fold]] <- (best_treshold$fp*FP + best_treshold$fn*FN)/length(cv_fold$fast_growth)
+  }
+  
+  # average
+  best_tresholds[[model_name]] <- mean(unlist(best_tresholds_cv))
+  expected_loss[[model_name]] <- mean(unlist(expected_loss_cv))
+  
+  # for fold #5
+  logit_cv_rocs[[model_name]] <- roc_obj
+  logit_cv_threshold[[model_name]] <- best_treshold
+  logit_cv_expected_loss[[model_name]] <- expected_loss_cv[[fold]]
+  
+}
+
+logit_summary2 <- data.frame("Avg of optimal thresholds" = unlist(best_tresholds),
+                             "Threshold for Fold5" = sapply(logit_cv_threshold, function(x) {x$threshold}),
+                             "Avg expected loss" = unlist(expected_loss),
+                             "Expected loss for Fold5" = unlist(logit_cv_expected_loss))
+
+kable(x = logit_summary2, format = "latex", booktabs=TRUE,  digits = 3, row.names = TRUE,
+      linesep = "", col.names = c("Avg of optimal thresholds","Threshold for fold #5",
+                                  "Avg expected loss","Expected loss for fold #5")) %>%
+  cat(.,file= paste0('/Users/xinqi/Desktop/DA3/Assignment_2/', "logit_summary1.tex"))
+
+# Create plots based on Fold5 in CV ----------------------------------------------
+createLossPlot <- function(r, best_coords, file_name,  myheight_small = 5.625, mywidth_small = 7.5) {
+  t <- best_coords$threshold[1]
+  sp <- best_coords$specificity[1]
+  se <- best_coords$sensitivity[1]
+  n <- rowSums(best_coords[c("tn", "tp", "fn", "fp")])[1]
+  
+  all_coords <- coords(r, x="all", ret="all", transpose = FALSE)
+  all_coords <- all_coords %>%
+    mutate(loss = (fp*FP + fn*FN)/n)
+  l <- all_coords[all_coords$threshold == t, "loss"]
+  
+  loss_plot <- ggplot(data = all_coords, aes(x = threshold, y = loss)) +
+    geom_line(color='orange', size=0.7) +
+    scale_x_continuous(limits = c(0, 1), breaks = seq(0, 1, by = 0.1)) +
+    geom_vline(xintercept = t , color = 'darkgreen' ) +
+    annotate(geom = "text", x = t, y= min(all_coords$loss),
+             label=paste0("best threshold: ", round(t,2)),
+             colour='darkgreen', angle=90, vjust = -1, hjust = -0.5, size = 7) +
+    annotate(geom = "text", x = t, y= l,
+             label= round(l, 2), hjust = -0.3, size = 7) +
+    theme_light() +
+    theme(axis.text.x=element_text(size=6,face = "plain")) +
+    theme(axis.text.y=element_text(size=6,face = "plain")) +
+    theme(axis.title.x=element_text(size=6, vjust=0, face = "plain")) +
+    theme(axis.title.y=element_text(size=6,vjust=1.25, face = "plain"))
+  # save_fig(file_name, output, "small")
+  
+  #  ggsave(plot = loss_plot, paste0(file_name,".png"), width=mywidth_small, height=myheight_small, dpi=1200)
+  #  cairo_ps(filename = paste0(file_name,".eps"), width = mywidth_small, height = myheight_small, pointsize = 12, fallback_resolution = 1200)
+  #  print(loss_plot)
+  #  dev.off()
+  
+  loss_plot
+}
+
+createRocPlotWithOptimal <- function(r, best_coords, file_name,  myheight_small = 5.625, mywidth_small = 7.5) {
+  
+  all_coords <- coords(r, x="all", ret="all", transpose = FALSE)
+  t <- best_coords$threshold[1]
+  sp <- best_coords$specificity[1]
+  se <- best_coords$sensitivity[1]
+  
+  roc_plot <- ggplot(data = all_coords, aes(x = specificity, y = sensitivity)) +
+    geom_line(color='orange', size=0.7) +
+    scale_y_continuous(breaks = seq(0, 1, by = 0.1)) +
+    scale_x_reverse(breaks = seq(0, 1, by = 0.1)) +
+    geom_point(aes(x = sp, y = se)) +
+    annotate(geom = "text", x = sp, y = se,
+             label = paste(round(sp, 2),round(se, 2),sep = ", "),
+             hjust = 1, vjust = -1, size = 7) +
+    theme_light() +
+    theme(axis.text.x=element_text(size=6,face = "plain")) +
+    theme(axis.text.y=element_text(size=6,face = "plain")) +
+    theme(axis.title.x=element_text(size=6, vjust=0, face = "plain")) +
+    theme(axis.title.y=element_text(size=6,vjust=1.25, face = "plain"))
+  #  + theme(axis.text.x = element_text(size=20), axis.text.y = element_text(size=20),
+  #          axis.title.x = element_text(size=20), axis.title.y = element_text(size=20))
+  #save_fig(file_name, output, "small")
+  
+  #  ggsave(plot = roc_plot, paste0(file_name, ".png"),         width=mywidth_small, height=myheight_small, dpi=1200)
+  # cairo_ps(filename = paste0(file_name, ".eps"),           width = mywidth_small, height = myheight_small, pointsize = 12,           fallback_resolution = 1200)
+  #print(roc_plot)
+  #dev.off()
+  
+  roc_plot
+}
+
+for (model_name in names(logit_cv_rocs)) {
+  
+  r <- logit_cv_rocs[[model_name]]
+  best_coords <- logit_cv_threshold[[model_name]]
+  createLossPlot(r, best_coords,
+                 paste0(model_name, "_loss_plot"))
+  createRocPlotWithOptimal(r, best_coords,
+                           paste0(model_name, "_roc_plot"))
+}
+
+```
+
+
+```{r, message = F, echo = FALSE, warning=FALSE, fig.align='center', out.width = '50%'}
+createLossPlot(r, best_coords,
+                 paste0(model_name, "_loss_plot"))
+```
+
+Table 7 summarizes our results. The optimal classification threshold turns out to be quite similar, except for logit M5. The model that has the smallest RMSE (logit LASSO) turns out not to be the one that has the smallest expected loss. Logit M3 turns out does.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lccc}
+\hline\hline
+ & RMSE & Optimal Threshold & Expected Loss \\ 
+  \hline
+Logit M1 & 0.431 & 0.171 & 0.735 \\ 
+Logit M2 & 0.428 & 0.172 & 0.728 \\ 
+Logit M3 & 0.426 & 0.165 & 0.712 \\ 
+Logit M4 & 0.425 & 0.171 & 0.717 \\ 
+Logit M5 & 0.426 & 0.141 & 0.715 \\ 
+Logit LASSO & 0.424 & 0.169 & 0.730 \\ 
+\hline\hline
+\end{tabular}
+   \caption{\bf Cross-validated Ranking of Classifications}
+\end{table}
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.show='hide'}
+# Pick best model based on average expected loss ----------------------------------
+
+best_logit_with_loss <- logit_models[["X3"]]
+best_logit_optimal_treshold <- best_tresholds[["X3"]]
+
+logit_predicted_probabilities_holdout <- predict(best_logit_with_loss, newdata = data_holdout, type = "prob")
+data_holdout[,"best_logit_with_loss_pred"] <- logit_predicted_probabilities_holdout[,"fast_growth"]
+
+# ROC curve on holdout
+roc_obj_holdout <- roc(data_holdout$fast_growth_sales, data_holdout[, "best_logit_with_loss_pred", drop=TRUE])
+
+# Get expected loss on holdout
+holdout_treshold <- coords(roc_obj_holdout, x = best_logit_optimal_treshold, input= "threshold",
+                           ret="all", transpose = FALSE)
+expected_loss_holdout <- (holdout_treshold$fp*FP + holdout_treshold$fn*FN)/length(data_holdout$fast_growth_sales)
+expected_loss_holdout
+
+# Confusion table on holdout with optimal threshold
+holdout_prediction <-
+  ifelse(data_holdout$best_logit_with_loss_pred < best_logit_optimal_treshold, "no_fast_growth", "fast_growth") %>%
+  factor(levels = c("no_fast_growth", "fast_growth"))
+cm_object3 <- confusionMatrix(holdout_prediction,data_holdout$fast_growth_sales_f)
+cm3 <- cm_object3$table
+cm3
+```
+
+
+
+
 
 
 

@@ -33,7 +33,7 @@ source("/Users/Terez/OneDrive - Central European University/Data_Analysis_03/da_
 source("/Users/Terez/OneDrive - Central European University/Data_Analysis_03/da_case_studies/ch00-tech-prep/da_helper_functions.R")
 
 
-
+data <- read.csv("data/firms_fast growth_clean.csv")
 
 #######################################################################################################################
 # Prediction Part
